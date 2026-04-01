@@ -442,6 +442,92 @@ export default function Home() {
     </div>
   );
 
+  const generateReport = useCallback(() => {
+    if (!stats || !oldFile || !newFile) return;
+
+    const lines: string[] = [];
+    const sep = "═".repeat(60);
+    const sepThin = "─".repeat(60);
+
+    lines.push(sep);
+    lines.push("  INFORME DE COMPARACIÓN DE DOCUMENTOS");
+    lines.push(sep);
+    lines.push("");
+    lines.push(`Fecha: ${new Date().toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}`);
+    lines.push(`Documento original: ${oldFile.name}`);
+    lines.push(`Documento nuevo:    ${newFile.name}`);
+    lines.push("");
+    lines.push(sepThin);
+    lines.push("  RESUMEN DE CAMBIOS");
+    lines.push(sepThin);
+    lines.push(`  Líneas agregadas:   ${stats.added}`);
+    lines.push(`  Líneas eliminadas:  ${stats.removed}`);
+    lines.push(`  Líneas editadas:    ${stats.modified}`);
+    lines.push(`  Líneas sin cambios: ${stats.unchanged}`);
+    lines.push(`  Total de cambios:   ${stats.added + stats.removed + stats.modified}`);
+    lines.push("");
+    lines.push(sep);
+    lines.push("  DETALLE DE CAMBIOS");
+    lines.push(sep);
+
+    let changeNum = 0;
+    for (const block of diffBlocks) {
+      if (block.type === "unchanged") continue;
+      changeNum++;
+      lines.push("");
+
+      if (block.type === "removed") {
+        lines.push(`[ELIMINADO #${changeNum}] Línea${block.oldLines.length > 1 ? "s" : ""} ${block.oldStartLine}${block.oldLines.length > 1 ? `-${block.oldStartLine + block.oldLines.length - 1}` : ""} del original`);
+        lines.push(sepThin);
+        for (let j = 0; j < block.oldLines.length; j++) {
+          lines.push(`  - ${block.oldLines[j]}`);
+        }
+      } else if (block.type === "added") {
+        lines.push(`[AGREGADO #${changeNum}] Línea${block.newLines.length > 1 ? "s" : ""} ${block.newStartLine}${block.newLines.length > 1 ? `-${block.newStartLine + block.newLines.length - 1}` : ""} del nuevo`);
+        lines.push(sepThin);
+        for (let j = 0; j < block.newLines.length; j++) {
+          lines.push(`  + ${block.newLines[j]}`);
+        }
+      } else if (block.type === "modified") {
+        lines.push(`[EDITADO #${changeNum}] Línea${block.oldLines.length > 1 ? "s" : ""} ${block.oldStartLine}${block.oldLines.length > 1 ? `-${block.oldStartLine + block.oldLines.length - 1}` : ""}`);
+        lines.push(sepThin);
+        lines.push("  ORIGINAL:");
+        for (let j = 0; j < block.oldLines.length; j++) {
+          lines.push(`    - ${block.oldLines[j]}`);
+        }
+        lines.push("  NUEVO:");
+        for (let j = 0; j < block.newLines.length; j++) {
+          lines.push(`    + ${block.newLines[j]}`);
+        }
+        if (block.wordDiffs) {
+          lines.push("  CAMBIOS ESPECÍFICOS:");
+          for (let j = 0; j < block.wordDiffs.length; j++) {
+            const removed = block.wordDiffs[j].filter((w) => w.removed).map((w) => w.value.trim()).filter(Boolean);
+            const added = block.wordDiffs[j].filter((w) => w.added).map((w) => w.value.trim()).filter(Boolean);
+            if (removed.length > 0 || added.length > 0) {
+              if (removed.length > 0) lines.push(`    Se quitó: "${removed.join(" ")}"`);
+              if (added.length > 0) lines.push(`    Se agregó: "${added.join(" ")}"`);
+            }
+          }
+        }
+      }
+    }
+
+    lines.push("");
+    lines.push(sep);
+    lines.push("  Fin del informe");
+    lines.push(sep);
+
+    const content = lines.join("\n");
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `informe-comparacion-${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [stats, oldFile, newFile, diffBlocks]);
+
   const totalChanges = stats ? stats.added + stats.removed + stats.modified : 0;
 
   return (
@@ -548,7 +634,7 @@ export default function Home() {
                 </div>
 
                 {filter === "all" && (
-                  <label className="flex items-center gap-2 text-sm text-gray-600 ml-auto cursor-pointer select-none">
+                  <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={showUnchanged}
@@ -558,6 +644,16 @@ export default function Home() {
                     Mostrar lineas sin cambios
                   </label>
                 )}
+
+                <button
+                  onClick={generateReport}
+                  className="ml-auto px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Descargar Informe
+                </button>
               </div>
 
               {/* Visual bar */}
