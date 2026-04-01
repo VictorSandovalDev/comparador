@@ -4,6 +4,8 @@ import { useState, useCallback, useRef } from "react";
 import * as Diff from "diff";
 import mammoth from "mammoth";
 import jsPDF from "jspdf";
+import { db } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
 
 type DiffBlock = {
   type: "added" | "removed" | "unchanged" | "modified";
@@ -44,6 +46,9 @@ export default function Home() {
   const [filter, setFilter] = useState<FilterType>("all");
   const [dragOver, setDragOver] = useState<"old" | "new" | null>(null);
   const [showUnchanged, setShowUnchanged] = useState(true);
+  const [sharing, setSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const oldInputRef = useRef<HTMLInputElement>(null);
   const newInputRef = useRef<HTMLInputElement>(null);
@@ -668,6 +673,38 @@ export default function Home() {
     doc.save(`informe-comparacion-${new Date().toISOString().slice(0, 10)}.pdf`);
   }, [stats, oldFile, newFile, diffBlocks]);
 
+  const shareComparison = useCallback(async () => {
+    if (!stats || !oldFile || !newFile || diffBlocks.length === 0) return;
+    setSharing(true);
+    setShareUrl(null);
+    try {
+      const id = crypto.randomUUID().slice(0, 12);
+      const expiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+      await setDoc(doc(db, "comparisons", id), {
+        oldFileName: oldFile.name,
+        newFileName: newFile.name,
+        diffBlocks,
+        stats,
+        createdAt: new Date().toISOString(),
+        expiresAt,
+      });
+      const base = window.location.origin + window.location.pathname.replace(/\/$/, "");
+      const url = `${base}/share?id=${id}`;
+      setShareUrl(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al compartir");
+    } finally {
+      setSharing(false);
+    }
+  }, [stats, oldFile, newFile, diffBlocks]);
+
+  const copyShareUrl = useCallback(() => {
+    if (!shareUrl) return;
+    navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [shareUrl]);
+
   const totalChanges = stats ? stats.added + stats.removed + stats.modified : 0;
 
   return (
@@ -785,15 +822,27 @@ export default function Home() {
                   </label>
                 )}
 
-                <button
-                  onClick={generateReport}
-                  className="ml-auto px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Descargar Informe
-                </button>
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={generateReport}
+                    className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Descargar PDF
+                  </button>
+                  <button
+                    onClick={shareComparison}
+                    disabled={sharing}
+                    className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                    </svg>
+                    {sharing ? "Generando..." : "Compartir"}
+                  </button>
+                </div>
               </div>
 
               {/* Visual bar */}
@@ -820,6 +869,29 @@ export default function Home() {
                       title={`${stats.removed} eliminadas`}
                     />
                   )}
+                </div>
+              )}
+
+              {/* Share URL */}
+              {shareUrl && (
+                <div className="mt-3 flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <svg className="w-5 h-5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  <input
+                    type="text"
+                    readOnly
+                    value={shareUrl}
+                    className="flex-1 bg-white border border-emerald-300 rounded px-3 py-1.5 text-sm text-gray-700 font-mono"
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                  />
+                  <button
+                    onClick={copyShareUrl}
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shrink-0"
+                  >
+                    {copied ? "Copiado!" : "Copiar"}
+                  </button>
+                  <span className="text-xs text-emerald-600 shrink-0">Expira en 3 dias</span>
                 </div>
               )}
             </div>
