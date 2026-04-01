@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #1e293b;
 }
 
 @theme inline {
@@ -12,15 +12,81 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Diff highlighting */
+.diff-added {
+  background-color: #dcfce7;
+  border-left: 3px solid #22c55e;
+  text-decoration: none;
+}
+
+.diff-removed {
+  background-color: #fee2e2;
+  border-left: 3px solid #ef4444;
+  text-decoration: line-through;
+}
+
+.diff-modified-old {
+  background-color: #fef3c7;
+  border-left: 3px solid #f59e0b;
+  text-decoration: line-through;
+}
+
+.diff-modified-new {
+  background-color: #dbeafe;
+  border-left: 3px solid #3b82f6;
+}
+
+.word-added {
+  background-color: #bbf7d0;
+  padding: 1px 2px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+.word-removed {
+  background-color: #fecaca;
+  padding: 1px 2px;
+  border-radius: 2px;
+  text-decoration: line-through;
+}
+
+/* Scrollbar styling */
+.comparison-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.comparison-panel::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.comparison-panel::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 4px;
+}
+
+.comparison-panel::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Upload zone animations */
+.upload-zone {
+  transition: all 0.2s ease;
+}
+
+.upload-zone:hover {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+}
+
+.upload-zone.dragover {
+  border-color: #3b82f6;
+  background-color: #dbeafe;
+  transform: scale(1.01);
 }
