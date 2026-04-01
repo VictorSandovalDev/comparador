@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import * as Diff from "diff";
 import mammoth from "mammoth";
+import jsPDF from "jspdf";
 
 type DiffBlock = {
   type: "added" | "removed" | "unchanged" | "modified";
@@ -445,87 +446,226 @@ export default function Home() {
   const generateReport = useCallback(() => {
     if (!stats || !oldFile || !newFile) return;
 
-    const lines: string[] = [];
-    const sep = "═".repeat(60);
-    const sepThin = "─".repeat(60);
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const contentW = pageW - margin * 2;
+    let y = margin;
 
-    lines.push(sep);
-    lines.push("  INFORME DE COMPARACIÓN DE DOCUMENTOS");
-    lines.push(sep);
-    lines.push("");
-    lines.push(`Fecha: ${new Date().toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}`);
-    lines.push(`Documento original: ${oldFile.name}`);
-    lines.push(`Documento nuevo:    ${newFile.name}`);
-    lines.push("");
-    lines.push(sepThin);
-    lines.push("  RESUMEN DE CAMBIOS");
-    lines.push(sepThin);
-    lines.push(`  Líneas agregadas:   ${stats.added}`);
-    lines.push(`  Líneas eliminadas:  ${stats.removed}`);
-    lines.push(`  Líneas editadas:    ${stats.modified}`);
-    lines.push(`  Líneas sin cambios: ${stats.unchanged}`);
-    lines.push(`  Total de cambios:   ${stats.added + stats.removed + stats.modified}`);
-    lines.push("");
-    lines.push(sep);
-    lines.push("  DETALLE DE CAMBIOS");
-    lines.push(sep);
+    const checkPage = (needed: number) => {
+      if (y + needed > pageH - 15) {
+        doc.addPage();
+        y = margin;
+      }
+    };
 
+    const drawRect = (x: number, yPos: number, w: number, h: number, color: [number, number, number]) => {
+      doc.setFillColor(color[0], color[1], color[2]);
+      doc.roundedRect(x, yPos, w, h, 2, 2, "F");
+    };
+
+    const wrapText = (text: string, maxW: number, fontSize: number): string[] => {
+      doc.setFontSize(fontSize);
+      return doc.splitTextToSize(text || " ", maxW) as string[];
+    };
+
+    // --- HEADER ---
+    drawRect(margin, y, contentW, 22, [59, 130, 246]);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("Informe de Comparacion", pageW / 2, y + 9, { align: "center" });
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text("Comparador de Documentos", pageW / 2, y + 17, { align: "center" });
+    y += 28;
+
+    // --- INFO BOX ---
+    drawRect(margin, y, contentW, 20, [243, 244, 246]);
+    doc.setTextColor(55, 65, 81);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("Fecha:", margin + 4, y + 6);
+    doc.text("Original:", margin + 4, y + 12);
+    doc.text("Nuevo:", margin + 4, y + 18);
+    doc.setFont("helvetica", "normal");
+    doc.text(new Date().toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }), margin + 22, y + 6);
+    doc.text(oldFile.name, margin + 22, y + 12);
+    doc.text(newFile.name, margin + 22, y + 18);
+    y += 26;
+
+    // --- STATS ---
+    const totalChanges = stats.added + stats.removed + stats.modified;
+    const statBoxW = contentW / 4 - 2;
+
+    const statItems: { label: string; value: number; color: [number, number, number]; bg: [number, number, number] }[] = [
+      { label: "Agregadas", value: stats.added, color: [22, 163, 74], bg: [220, 252, 231] },
+      { label: "Eliminadas", value: stats.removed, color: [220, 38, 38], bg: [254, 226, 226] },
+      { label: "Editadas", value: stats.modified, color: [217, 119, 6], bg: [254, 243, 199] },
+      { label: "Sin cambios", value: stats.unchanged, color: [107, 114, 128], bg: [243, 244, 246] },
+    ];
+
+    statItems.forEach((item, i) => {
+      const x = margin + i * (statBoxW + 2.5);
+      drawRect(x, y, statBoxW, 16, item.bg);
+      doc.setTextColor(item.color[0], item.color[1], item.color[2]);
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text(String(item.value), x + statBoxW / 2, y + 7, { align: "center" });
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.text(item.label, x + statBoxW / 2, y + 13, { align: "center" });
+    });
+    y += 22;
+
+    // --- PROGRESS BAR ---
+    if (totalChanges > 0) {
+      const barH = 4;
+      let barX = margin;
+      const colors: { count: number; color: [number, number, number] }[] = [
+        { count: stats.added, color: [34, 197, 94] },
+        { count: stats.modified, color: [251, 191, 36] },
+        { count: stats.removed, color: [239, 68, 68] },
+      ];
+      colors.forEach(({ count, color }) => {
+        if (count > 0) {
+          const w = (count / totalChanges) * contentW;
+          doc.setFillColor(color[0], color[1], color[2]);
+          doc.rect(barX, y, w, barH, "F");
+          barX += w;
+        }
+      });
+      y += 8;
+    }
+
+    // --- SECTION TITLE ---
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(31, 41, 55);
+    doc.text("Detalle de Cambios", margin, y + 5);
+    y += 10;
+    doc.setDrawColor(209, 213, 219);
+    doc.line(margin, y, pageW - margin, y);
+    y += 4;
+
+    // --- CHANGE BLOCKS ---
     let changeNum = 0;
     for (const block of diffBlocks) {
       if (block.type === "unchanged") continue;
       changeNum++;
-      lines.push("");
+
+      const labelMap = {
+        removed: { text: "ELIMINADO", bg: [254, 226, 226] as [number, number, number], badge: [220, 38, 38] as [number, number, number], textColor: [153, 27, 27] as [number, number, number] },
+        added: { text: "AGREGADO", bg: [220, 252, 231] as [number, number, number], badge: [22, 163, 74] as [number, number, number], textColor: [20, 83, 45] as [number, number, number] },
+        modified: { text: "EDITADO", bg: [254, 243, 199] as [number, number, number], badge: [217, 119, 6] as [number, number, number], textColor: [120, 53, 15] as [number, number, number] },
+      };
+      const style = labelMap[block.type as keyof typeof labelMap];
+
+      checkPage(20);
+
+      // Badge header
+      drawRect(margin, y, contentW, 8, style.bg);
+      drawRect(margin + 2, y + 1.5, 24, 5, style.badge);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(6);
+      doc.setFont("helvetica", "bold");
+      doc.text(style.text, margin + 14, y + 5, { align: "center" });
+
+      doc.setTextColor(style.textColor[0], style.textColor[1], style.textColor[2]);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      const lineInfo = block.type === "added"
+        ? `#${changeNum} - Linea ${block.newStartLine} del nuevo`
+        : `#${changeNum} - Linea ${block.oldStartLine} del original`;
+      doc.text(lineInfo, margin + 28, y + 5);
+      y += 10;
+
+      const printLines = (lines: string[], prefix: string, color: [number, number, number]) => {
+        for (const line of lines) {
+          const wrapped = wrapText(`${prefix} ${line}`, contentW - 10, 8);
+          checkPage(wrapped.length * 4 + 2);
+          doc.setTextColor(color[0], color[1], color[2]);
+          doc.setFontSize(8);
+          doc.setFont("courier", "normal");
+          for (const wl of wrapped) {
+            doc.text(wl, margin + 4, y + 3);
+            y += 4;
+          }
+        }
+      };
 
       if (block.type === "removed") {
-        lines.push(`[ELIMINADO #${changeNum}] Línea${block.oldLines.length > 1 ? "s" : ""} ${block.oldStartLine}${block.oldLines.length > 1 ? `-${block.oldStartLine + block.oldLines.length - 1}` : ""} del original`);
-        lines.push(sepThin);
-        for (let j = 0; j < block.oldLines.length; j++) {
-          lines.push(`  - ${block.oldLines[j]}`);
-        }
+        printLines(block.oldLines, "-", [153, 27, 27]);
       } else if (block.type === "added") {
-        lines.push(`[AGREGADO #${changeNum}] Línea${block.newLines.length > 1 ? "s" : ""} ${block.newStartLine}${block.newLines.length > 1 ? `-${block.newStartLine + block.newLines.length - 1}` : ""} del nuevo`);
-        lines.push(sepThin);
-        for (let j = 0; j < block.newLines.length; j++) {
-          lines.push(`  + ${block.newLines[j]}`);
-        }
+        printLines(block.newLines, "+", [20, 83, 45]);
       } else if (block.type === "modified") {
-        lines.push(`[EDITADO #${changeNum}] Línea${block.oldLines.length > 1 ? "s" : ""} ${block.oldStartLine}${block.oldLines.length > 1 ? `-${block.oldStartLine + block.oldLines.length - 1}` : ""}`);
-        lines.push(sepThin);
-        lines.push("  ORIGINAL:");
-        for (let j = 0; j < block.oldLines.length; j++) {
-          lines.push(`    - ${block.oldLines[j]}`);
-        }
-        lines.push("  NUEVO:");
-        for (let j = 0; j < block.newLines.length; j++) {
-          lines.push(`    + ${block.newLines[j]}`);
-        }
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(153, 27, 27);
+        doc.text("ORIGINAL:", margin + 4, y + 3);
+        y += 5;
+        printLines(block.oldLines, "-", [153, 27, 27]);
+
+        y += 2;
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(20, 83, 45);
+        doc.text("NUEVO:", margin + 4, y + 3);
+        y += 5;
+        printLines(block.newLines, "+", [20, 83, 45]);
+
         if (block.wordDiffs) {
-          lines.push("  CAMBIOS ESPECÍFICOS:");
-          for (let j = 0; j < block.wordDiffs.length; j++) {
-            const removed = block.wordDiffs[j].filter((w) => w.removed).map((w) => w.value.trim()).filter(Boolean);
-            const added = block.wordDiffs[j].filter((w) => w.added).map((w) => w.value.trim()).filter(Boolean);
+          let hasWordChanges = false;
+          for (const wd of block.wordDiffs) {
+            const removed = wd.filter((w) => w.removed).map((w) => w.value.trim()).filter(Boolean);
+            const added = wd.filter((w) => w.added).map((w) => w.value.trim()).filter(Boolean);
             if (removed.length > 0 || added.length > 0) {
-              if (removed.length > 0) lines.push(`    Se quitó: "${removed.join(" ")}"`);
-              if (added.length > 0) lines.push(`    Se agregó: "${added.join(" ")}"`);
+              if (!hasWordChanges) {
+                y += 2;
+                checkPage(8);
+                doc.setFontSize(7);
+                doc.setFont("helvetica", "bold");
+                doc.setTextColor(120, 53, 15);
+                doc.text("Cambios especificos:", margin + 4, y + 3);
+                y += 5;
+                hasWordChanges = true;
+              }
+              checkPage(8);
+              doc.setFontSize(7);
+              doc.setFont("helvetica", "normal");
+              if (removed.length > 0) {
+                doc.setTextColor(153, 27, 27);
+                doc.text(`Se quito: "${removed.join(" ")}"`, margin + 8, y + 3);
+                y += 4;
+              }
+              if (added.length > 0) {
+                checkPage(5);
+                doc.setTextColor(20, 83, 45);
+                doc.text(`Se agrego: "${added.join(" ")}"`, margin + 8, y + 3);
+                y += 4;
+              }
             }
           }
         }
       }
+
+      y += 4;
+      doc.setDrawColor(229, 231, 235);
+      doc.line(margin, y, pageW - margin, y);
+      y += 4;
     }
 
-    lines.push("");
-    lines.push(sep);
-    lines.push("  Fin del informe");
-    lines.push(sep);
+    // --- FOOTER ---
+    checkPage(12);
+    y += 4;
+    drawRect(margin, y, contentW, 8, [243, 244, 246]);
+    doc.setTextColor(107, 114, 128);
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "italic");
+    doc.text("Generado por Comparador de Documentos", pageW / 2, y + 5, { align: "center" });
 
-    const content = lines.join("\n");
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `informe-comparacion-${new Date().toISOString().slice(0, 10)}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    doc.save(`informe-comparacion-${new Date().toISOString().slice(0, 10)}.pdf`);
   }, [stats, oldFile, newFile, diffBlocks]);
 
   const totalChanges = stats ? stats.added + stats.removed + stats.modified : 0;
