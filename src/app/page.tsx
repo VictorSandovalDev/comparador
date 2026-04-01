@@ -683,7 +683,7 @@ export default function Home() {
       await setDoc(doc(db, "comparisons", id), {
         oldFileName: oldFile.name,
         newFileName: newFile.name,
-        diffBlocks,
+        diffBlocks: JSON.stringify(diffBlocks),
         stats,
         createdAt: new Date().toISOString(),
         expiresAt,
@@ -761,10 +761,11 @@ export default function Home() {
           {/* Summary cards */}
           <section className="bg-white border-b border-gray-200">
             <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              {/* Row 1: Summary + Filters */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                 <div className="flex items-center gap-2">
                   <span className="text-lg font-bold text-gray-800">Resumen:</span>
-                  <span className="text-sm text-gray-500">{totalChanges} cambio{totalChanges !== 1 ? "s" : ""} encontrado{totalChanges !== 1 ? "s" : ""}</span>
+                  <span className="text-sm text-gray-500">{totalChanges} cambio{totalChanges !== 1 ? "s" : ""}</span>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -809,7 +810,10 @@ export default function Home() {
                     ~ Editado ({stats.modified})
                   </button>
                 </div>
+              </div>
 
+              {/* Row 2: Options + Actions */}
+              <div className="mt-3 flex flex-wrap items-center gap-3">
                 {filter === "all" && (
                   <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
                     <input
@@ -822,10 +826,10 @@ export default function Home() {
                   </label>
                 )}
 
-                <div className="ml-auto flex items-center gap-2">
+                <div className="flex items-center gap-2 sm:ml-auto">
                   <button
                     onClick={generateReport}
-                    className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 flex items-center gap-2"
+                    className="px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer border bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -835,7 +839,7 @@ export default function Home() {
                   <button
                     onClick={shareComparison}
                     disabled={sharing}
-                    className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 flex items-center gap-2 disabled:opacity-50"
+                    className="px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer border bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 flex items-center gap-2 disabled:opacity-50"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />

@@ -63,7 +63,11 @@ function ShareContent() {
           setLoading(false);
           return;
         }
-        const d = snap.data() as ComparisonData;
+        const raw = snap.data();
+        const d: ComparisonData = {
+          ...raw as ComparisonData,
+          diffBlocks: typeof raw.diffBlocks === "string" ? JSON.parse(raw.diffBlocks) : raw.diffBlocks,
+        };
         if (new Date(d.expiresAt) < new Date()) {
           setError("Este enlace ha expirado");
           setLoading(false);
