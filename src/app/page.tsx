@@ -487,18 +487,32 @@ export default function Home() {
     y += 28;
 
     // --- INFO BOX ---
-    drawRect(margin, y, contentW, 20, [243, 244, 246]);
+    const infoLabelX = margin + 4;
+    const infoValueX = margin + 22;
+    const infoMaxW = contentW - 26;
+    doc.setFontSize(9);
+    const dateStr = new Date().toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    const oldNameLines = wrapText(oldFile.name, infoMaxW, 9);
+    const newNameLines = wrapText(newFile.name, infoMaxW, 9);
+    const infoBoxH = 6 + (1 + oldNameLines.length + newNameLines.length) * 6;
+    drawRect(margin, y, contentW, infoBoxH, [243, 244, 246]);
     doc.setTextColor(55, 65, 81);
     doc.setFontSize(9);
+    let infoY = y + 6;
     doc.setFont("helvetica", "bold");
-    doc.text("Fecha:", margin + 4, y + 6);
-    doc.text("Original:", margin + 4, y + 12);
-    doc.text("Nuevo:", margin + 4, y + 18);
+    doc.text("Fecha:", infoLabelX, infoY);
     doc.setFont("helvetica", "normal");
-    doc.text(new Date().toLocaleDateString("es-ES", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }), margin + 22, y + 6);
-    doc.text(oldFile.name, margin + 22, y + 12);
-    doc.text(newFile.name, margin + 22, y + 18);
-    y += 26;
+    doc.text(dateStr, infoValueX, infoY);
+    infoY += 6;
+    doc.setFont("helvetica", "bold");
+    doc.text("Original:", infoLabelX, infoY);
+    doc.setFont("helvetica", "normal");
+    for (const line of oldNameLines) { doc.text(line, infoValueX, infoY); infoY += 6; }
+    doc.setFont("helvetica", "bold");
+    doc.text("Nuevo:", infoLabelX, infoY);
+    doc.setFont("helvetica", "normal");
+    for (const line of newNameLines) { doc.text(line, infoValueX, infoY); infoY += 6; }
+    y += infoBoxH + 6;
 
     // --- STATS ---
     const totalChanges = stats.added + stats.removed + stats.modified;
@@ -641,14 +655,21 @@ export default function Home() {
               doc.setFont("helvetica", "normal");
               if (removed.length > 0) {
                 doc.setTextColor(153, 27, 27);
-                doc.text(`Se quito: "${removed.join(" ")}"`, margin + 8, y + 3);
-                y += 4;
+                const removedWrapped = wrapText(`Se quito: "${removed.join(" ")}"`, contentW - 12, 7);
+                for (const rl of removedWrapped) {
+                  checkPage(5);
+                  doc.text(rl, margin + 8, y + 3);
+                  y += 4;
+                }
               }
               if (added.length > 0) {
-                checkPage(5);
                 doc.setTextColor(20, 83, 45);
-                doc.text(`Se agrego: "${added.join(" ")}"`, margin + 8, y + 3);
-                y += 4;
+                const addedWrapped = wrapText(`Se agrego: "${added.join(" ")}"`, contentW - 12, 7);
+                for (const al of addedWrapped) {
+                  checkPage(5);
+                  doc.text(al, margin + 8, y + 3);
+                  y += 4;
+                }
               }
             }
           }
